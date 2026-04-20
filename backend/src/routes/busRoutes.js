@@ -1,0 +1,23 @@
+const express = require("express");
+const auth = require("../middleware/auth");
+const {
+  assignDriver,
+  createBus,
+  deleteBus,
+  getBuses,
+  getBusEta,
+  getBusLocations,
+  updateBus,
+} = require("../controllers/busController");
+
+const router = express.Router();
+
+router.get("/", getBuses);
+router.get("/locations/latest", getBusLocations);
+router.get("/eta", getBusEta);
+router.post("/", auth(["admin"]), createBus);
+router.patch("/:id", auth(["admin"]), updateBus);
+router.delete("/:id", auth(["admin"]), deleteBus);
+router.post("/assign-driver", auth(["admin"]), assignDriver);
+
+module.exports = router;
