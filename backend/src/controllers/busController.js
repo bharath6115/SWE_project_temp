@@ -46,8 +46,25 @@ const updateBus = async (req, res, next) => {
       }
     }
 
+    const hadStatusOrTripChange =
+      Object.prototype.hasOwnProperty.call(req.body || {}, "status") ||
+      Object.prototype.hasOwnProperty.call(req.body || {}, "isTripActive");
     Object.assign(bus, req.body);
     await bus.save();
+
+    if (hadStatusOrTripChange) {
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`bus_${bus._id}`).emit("busStatusUpdated", {
+          busId: bus._id,
+          status: bus.status,
+          isTripActive: bus.isTripActive,
+          currentLocation: bus.currentLocation || null,
+          updatedAt: new Date().toISOString(),
+        });
+      }
+    }
+
     res.json(bus);
   } catch (error) {
     next(error);

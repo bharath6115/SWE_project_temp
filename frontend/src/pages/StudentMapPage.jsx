@@ -20,7 +20,7 @@ export default function StudentMapPage() {
   }, []);
 
   useEffect(() => {
-    if (!socket?.connected) return;
+    if (!socket || !isConnected) return;
 
     buses.forEach((bus) => {
       socket.emit("subscribeToBus", bus._id);
@@ -31,7 +31,7 @@ export default function StudentMapPage() {
         socket.emit("unsubscribeFromBus", bus._id);
       });
     };
-  }, [socket, buses]);
+  }, [socket, buses, isConnected]);
 
   const mergedBuses = useMemo(
     () =>

@@ -132,6 +132,27 @@ export default function useSocket() {
       }));
     };
 
+    const onBusStatus = (payload = {}) => {
+      if (!payload.busId) return;
+      setBusLocations((prev) => {
+        const current = prev[payload.busId] || {};
+        const latitude = Number(payload.currentLocation?.latitude ?? current.latitude);
+        const longitude = Number(payload.currentLocation?.longitude ?? current.longitude);
+        return {
+          ...prev,
+          [payload.busId]: {
+            ...current,
+            bus: payload.busId,
+            busId: payload.busId,
+            status: payload.status ?? current.status,
+            latitude: Number.isFinite(latitude) ? latitude : current.latitude,
+            longitude: Number.isFinite(longitude) ? longitude : current.longitude,
+            updatedAt: payload.updatedAt || current.updatedAt,
+          },
+        };
+      });
+    };
+
     const onDelay = (payload) => {
       setDelayMessages((prev) => [payload, ...prev].slice(0, 10));
       if (payload.message) {
@@ -147,6 +168,7 @@ export default function useSocket() {
     socket.on("connect_error", onConnectError);
     socket.on("error", onError);
     socket.on("busLocationUpdated", onBusLocation);
+    socket.on("busStatusUpdated", onBusStatus);
     socket.on("delayNotification", onDelay);
 
     return () => {
@@ -155,6 +177,7 @@ export default function useSocket() {
       socket.off("connect_error", onConnectError);
       socket.off("error", onError);
       socket.off("busLocationUpdated", onBusLocation);
+      socket.off("busStatusUpdated", onBusStatus);
       socket.off("delayNotification", onDelay);
     };
   }, [socket, showError, showWarning, showSuccess]);

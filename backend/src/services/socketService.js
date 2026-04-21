@@ -105,16 +105,17 @@ const attachSocketHandlers = (io) => {
         }
 
         // Throttle updates per driver
-        const driverId = socket.userId;
+        const driverId = String(socket.userId);
+        const throttleKey = `${driverId}:${busId}`;
         const now = Date.now();
-        const last = lastUpdateByDriver.get(driverId) || 0;
+        const last = lastUpdateByDriver.get(throttleKey) || 0;
         if (now - last < locationThrottleMs) {
           socket.emit("error", {
             message: `Too many updates. Wait ${Math.ceil((locationThrottleMs - (now - last)) / 1000)}s`,
           });
           return;
         }
-        lastUpdateByDriver.set(driverId, now);
+        lastUpdateByDriver.set(throttleKey, now);
 
         // Fetch and validate driver & bus
         const [driver, bus] = await Promise.all([
@@ -140,10 +141,15 @@ const attachSocketHandlers = (io) => {
 
         // Calculate ETA to first stop
         const firstStop = bus.route?.stops?.[0];
+        const reportedSpeedKmph = Number(payload.speedKmph);
+        const speedForEta =
+          Number.isFinite(reportedSpeedKmph) && reportedSpeedKmph > 0
+            ? reportedSpeedKmph
+            : Number(process.env.DEFAULT_SPEED_KMPH || 24);
         const etaMinutes = estimateEtaMinutes(
           { latitude, longitude },
           firstStop || { latitude, longitude },
-          Number(process.env.DEFAULT_SPEED_KMPH || 24),
+          speedForEta,
         );
 
         // Save location record

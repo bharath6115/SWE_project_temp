@@ -20,6 +20,7 @@ const start = async () => {
 
   // Add socket authentication middleware
   io.use(socketAuth);
+  app.set("io", io);
 
   attachSocketHandlers(io);
 

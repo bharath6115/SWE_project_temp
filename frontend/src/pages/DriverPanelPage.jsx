@@ -3,6 +3,9 @@ import client from "../api/client";
 import { useAuth } from "../context/AuthContext";
 import useSocket from "../hooks/useSocket";
 
+const LOCATION_THROTTLE_MS = Number(import.meta.env.VITE_LOCATION_THROTTLE_MS || 3000);
+const LOCATION_SEND_INTERVAL_MS = Math.max(LOCATION_THROTTLE_MS, 3000) + 250;
+
 export default function DriverPanelPage() {
   const { user } = useAuth();
   const { socket } = useSocket();
@@ -39,13 +42,17 @@ export default function DriverPanelPage() {
 
   useEffect(() => {
     if (!tripActive || !bus) return undefined;
+    if (!socket?.connected) return undefined;
     if (!navigator.geolocation) {
       setGeoStatus("unsupported");
       setGeoError("Geolocation is not supported in this browser.");
       return undefined;
     }
 
+    let inFlight = false;
     const interval = setInterval(() => {
+      if (inFlight) return;
+      inFlight = true;
       navigator.geolocation.getCurrentPosition(
         (position) => {
           setGeoStatus("ok");
@@ -56,7 +63,12 @@ export default function DriverPanelPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             status,
+            speedKmph:
+              Number.isFinite(position.coords.speed) && position.coords.speed >= 0
+                ? position.coords.speed * 3.6
+                : null,
           });
+          inFlight = false;
         },
         (positionError) => {
           setGeoStatus("error");
@@ -77,10 +89,11 @@ export default function DriverPanelPage() {
             return;
           }
           setGeoError("Unable to fetch location.");
+          inFlight = false;
         },
         { enableHighAccuracy: true, timeout: 8000 },
       );
-    }, 3000);
+    }, LOCATION_SEND_INTERVAL_MS);
 
     return () => clearInterval(interval);
   }, [tripActive, socket, user, bus, status]);
@@ -90,9 +103,10 @@ export default function DriverPanelPage() {
 
     const handleSocketError = (error) => {
       console.error("[Driver] Socket error:", error);
-      if (error.message?.includes("too many updates")) {
+      const message = (error.message || "").toLowerCase();
+      if (message.includes("too many updates")) {
         setGeoError("Location updates too frequent. Waiting...");
-      } else if (error.message?.includes("not assigned")) {
+      } else if (message.includes("not assigned")) {
         setGeoError("Error: Not assigned to this bus");
       } else {
         setGeoError(error.message || "Failed to send location");
