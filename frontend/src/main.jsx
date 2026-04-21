@@ -6,6 +6,8 @@ import "./styles.css";
 import "leaflet/dist/leaflet.css";
 import { AuthProvider } from "./context/AuthContext";
 import { LocationProvider } from "./context/LocationContext";
+import { ToastProvider } from "./context/ToastContext";
+import Toast from "./components/Toast";
 import { registerServiceWorker } from "./utils/registerServiceWorker";
 import AppErrorBoundary from "./components/AppErrorBoundary";
 
@@ -15,12 +17,15 @@ ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AppErrorBoundary>
       <BrowserRouter>
-        <AuthProvider>
-          <LocationProvider>
-            <App />
-          </LocationProvider>
-        </AuthProvider>
+        <ToastProvider>
+          <AuthProvider>
+            <LocationProvider>
+              <App />
+              <Toast />
+            </LocationProvider>
+          </AuthProvider>
+        </ToastProvider>
       </BrowserRouter>
     </AppErrorBoundary>
-  </React.StrictMode>
+  </React.StrictMode>,
 );

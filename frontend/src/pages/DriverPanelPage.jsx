@@ -27,7 +27,9 @@ export default function DriverPanelPage() {
         setTripActive(Boolean(assigned?.isTripActive));
         setStatus(assigned?.status || "running");
       } catch (loadError) {
-        setError(loadError.response?.data?.message || "Failed to load assigned bus.");
+        setError(
+          loadError.response?.data?.message || "Failed to load assigned bus.",
+        );
       } finally {
         setLoading(false);
       }
@@ -50,7 +52,6 @@ export default function DriverPanelPage() {
           setGeoError("");
           setLastLocationAt(new Date().toISOString());
           socket.emit("locationUpdate", {
-            driverId: user.id,
             busId: bus._id,
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
@@ -60,11 +61,15 @@ export default function DriverPanelPage() {
         (positionError) => {
           setGeoStatus("error");
           if (positionError.code === 1) {
-            setGeoError("Location permission denied. Please enable location access.");
+            setGeoError(
+              "Location permission denied. Please enable location access.",
+            );
             return;
           }
           if (positionError.code === 2) {
-            setGeoError("Location unavailable. Check GPS/network and try again.");
+            setGeoError(
+              "Location unavailable. Check GPS/network and try again.",
+            );
             return;
           }
           if (positionError.code === 3) {
@@ -73,12 +78,30 @@ export default function DriverPanelPage() {
           }
           setGeoError("Unable to fetch location.");
         },
-        { enableHighAccuracy: true, timeout: 8000 }
+        { enableHighAccuracy: true, timeout: 8000 },
       );
     }, 3000);
 
     return () => clearInterval(interval);
   }, [tripActive, socket, user, bus, status]);
+
+  useEffect(() => {
+    if (!socket) return;
+
+    const handleSocketError = (error) => {
+      console.error("[Driver] Socket error:", error);
+      if (error.message?.includes("too many updates")) {
+        setGeoError("Location updates too frequent. Waiting...");
+      } else if (error.message?.includes("not assigned")) {
+        setGeoError("Error: Not assigned to this bus");
+      } else {
+        setGeoError(error.message || "Failed to send location");
+      }
+    };
+
+    socket.on("error", handleSocketError);
+    return () => socket.off("error", handleSocketError);
+  }, [socket]);
 
   const updateTrip = async (isTripActive) => {
     if (!bus) return;
@@ -89,7 +112,9 @@ export default function DriverPanelPage() {
       setTripActive(isTripActive);
       setFeedback(isTripActive ? "Trip started." : "Trip stopped.");
     } catch (updateError) {
-      setError(updateError.response?.data?.message || "Failed to update trip state.");
+      setError(
+        updateError.response?.data?.message || "Failed to update trip state.",
+      );
     }
   };
 
@@ -102,7 +127,9 @@ export default function DriverPanelPage() {
       setStatus(nextStatus);
       setFeedback(`Status updated to ${nextStatus}.`);
     } catch (updateError) {
-      setError(updateError.response?.data?.message || "Failed to update status.");
+      setError(
+        updateError.response?.data?.message || "Failed to update status.",
+      );
     }
   };
 
@@ -122,30 +149,68 @@ export default function DriverPanelPage() {
     <main className="mx-auto max-w-3xl p-4">
       <div className="rounded bg-white p-4 shadow">
         <h2 className="text-xl font-semibold">Driver Panel</h2>
-        {error && <p className="mt-2 rounded bg-red-100 p-2 text-sm text-red-700">{error}</p>}
-        {feedback && <p className="mt-2 rounded bg-green-100 p-2 text-sm text-green-700">{feedback}</p>}
+        {error && (
+          <p className="mt-2 rounded bg-red-100 p-2 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+        {feedback && (
+          <p className="mt-2 rounded bg-green-100 p-2 text-sm text-green-700">
+            {feedback}
+          </p>
+        )}
         <p className="mt-2 text-sm">Assigned Bus: {bus.number}</p>
         <p className="text-sm">Current Status: {status}</p>
         <p className="text-sm">Trip: {tripActive ? "Active" : "Inactive"}</p>
         <p className="text-sm">
-          Location sync: {geoStatus === "ok" ? "Running" : geoStatus === "unsupported" ? "Unsupported" : geoStatus === "error" ? "Issue detected" : "Waiting"}
+          Location sync:{" "}
+          {geoStatus === "ok"
+            ? "Running"
+            : geoStatus === "unsupported"
+              ? "Unsupported"
+              : geoStatus === "error"
+                ? "Issue detected"
+                : "Waiting"}
         </p>
-        {lastLocationAt && <p className="text-xs text-slate-600">Last location sent: {new Date(lastLocationAt).toLocaleTimeString()}</p>}
-        {geoError && <p className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">{geoError}</p>}
+        {lastLocationAt && (
+          <p className="text-xs text-slate-600">
+            Last location sent: {new Date(lastLocationAt).toLocaleTimeString()}
+          </p>
+        )}
+        {geoError && (
+          <p className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">
+            {geoError}
+          </p>
+        )}
         <div className="mt-4 flex flex-wrap gap-2">
-          <button onClick={() => updateTrip(true)} className="rounded bg-green-600 px-3 py-2 text-white">
+          <button
+            onClick={() => updateTrip(true)}
+            className="rounded bg-green-600 px-3 py-2 text-white"
+          >
             Start Trip
           </button>
-          <button onClick={() => updateTrip(false)} className="rounded bg-gray-700 px-3 py-2 text-white">
+          <button
+            onClick={() => updateTrip(false)}
+            className="rounded bg-gray-700 px-3 py-2 text-white"
+          >
             Stop Trip
           </button>
-          <button onClick={() => updateStatus("running")} className="rounded bg-blue-600 px-3 py-2 text-white">
+          <button
+            onClick={() => updateStatus("running")}
+            className="rounded bg-blue-600 px-3 py-2 text-white"
+          >
             Running
           </button>
-          <button onClick={() => updateStatus("delayed")} className="rounded bg-yellow-600 px-3 py-2 text-white">
+          <button
+            onClick={() => updateStatus("delayed")}
+            className="rounded bg-yellow-600 px-3 py-2 text-white"
+          >
             Delayed
           </button>
-          <button onClick={() => updateStatus("stopped")} className="rounded bg-red-600 px-3 py-2 text-white">
+          <button
+            onClick={() => updateStatus("stopped")}
+            className="rounded bg-red-600 px-3 py-2 text-white"
+          >
             Stopped
           </button>
         </div>

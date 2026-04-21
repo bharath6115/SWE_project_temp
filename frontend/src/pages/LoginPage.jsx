@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import { useToast } from "../context/ToastContext";
 
 export default function LoginPage() {
   const [form, setForm] = useState({ email: "", password: "" });
   const [error, setError] = useState("");
   const { login } = useAuth();
+  const { error: showError, success: showSuccess } = useToast();
   const navigate = useNavigate();
 
   const handleSubmit = async (event) => {
@@ -13,11 +15,14 @@ export default function LoginPage() {
     setError("");
     try {
       const user = await login(form);
+      showSuccess("Login successful!");
       if (user.role === "driver") navigate("/driver");
       else if (user.role === "admin") navigate("/admin");
       else navigate("/student");
     } catch (err) {
-      setError(err.response?.data?.message || "Login failed");
+      const errorMsg = err.response?.data?.message || "Login failed";
+      setError(errorMsg);
+      showError(errorMsg);
     }
   };
 
@@ -29,7 +34,9 @@ export default function LoginPage() {
           className="w-full rounded border p-2"
           placeholder="Email"
           value={form.email}
-          onChange={(event) => setForm((prev) => ({ ...prev, email: event.target.value }))}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, email: event.target.value }))
+          }
           type="email"
           required
         />
@@ -37,12 +44,17 @@ export default function LoginPage() {
           className="w-full rounded border p-2"
           placeholder="Password"
           value={form.password}
-          onChange={(event) => setForm((prev) => ({ ...prev, password: event.target.value }))}
+          onChange={(event) =>
+            setForm((prev) => ({ ...prev, password: event.target.value }))
+          }
           type="password"
           required
         />
         {error && <p className="text-sm text-red-600">{error}</p>}
-        <button type="submit" className="w-full rounded bg-blue-600 p-2 text-white">
+        <button
+          type="submit"
+          className="w-full rounded bg-blue-600 p-2 text-white"
+        >
           Login
         </button>
       </form>

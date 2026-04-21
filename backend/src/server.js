@@ -4,6 +4,7 @@ const { Server } = require("socket.io");
 const app = require("./app");
 const connectDB = require("./config/db");
 const { attachSocketHandlers } = require("./services/socketService");
+const socketAuth = require("./middleware/socketAuth");
 
 const PORT = Number(process.env.PORT || 5000);
 
@@ -16,6 +17,9 @@ const start = async () => {
       methods: ["GET", "POST"],
     },
   });
+
+  // Add socket authentication middleware
+  io.use(socketAuth);
 
   attachSocketHandlers(io);
 

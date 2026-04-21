@@ -10,11 +10,24 @@ export default function AdminDashboardPage() {
   const [newBus, setNewBus] = useState({ number: "", route: "" });
   const [editingRouteId, setEditingRouteId] = useState(null);
   const [editingBusId, setEditingBusId] = useState(null);
-  const [routeDraft, setRouteDraft] = useState({ name: "", code: "", stops: [] });
-  const [busDraft, setBusDraft] = useState({ number: "", route: "", status: "stopped", isTripActive: false });
-  const [newStop, setNewStop] = useState({ name: "", latitude: "", longitude: "" });
+  const [routeDraft, setRouteDraft] = useState({
+    name: "",
+    code: "",
+    stops: [],
+  });
+  const [busDraft, setBusDraft] = useState({
+    number: "",
+    route: "",
+    status: "stopped",
+    isTripActive: false,
+  });
+  const [newStop, setNewStop] = useState({
+    name: "",
+    latitude: "",
+    longitude: "",
+  });
   const [feedback, setFeedback] = useState({ type: "", message: "" });
-  const { busLocations, isConnected } = useSocket();
+  const { socket, busLocations, isConnected } = useSocket();
 
   const load = async () => {
     const [routesRes, busesRes, driversRes] = await Promise.all([
@@ -31,6 +44,20 @@ export default function AdminDashboardPage() {
     load().catch(() => undefined);
   }, []);
 
+  useEffect(() => {
+    if (!socket?.connected) return;
+
+    buses.forEach((bus) => {
+      socket.emit("subscribeToBus", bus._id);
+    });
+
+    return () => {
+      buses.forEach((bus) => {
+        socket.emit("unsubscribeFromBus", bus._id);
+      });
+    };
+  }, [socket, buses]);
+
   const createRoute = async (event) => {
     event.preventDefault();
     try {
@@ -39,7 +66,10 @@ export default function AdminDashboardPage() {
       await load();
       setFeedback({ type: "success", message: "Route created." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to create route." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to create route.",
+      });
     }
   };
 
@@ -51,7 +81,10 @@ export default function AdminDashboardPage() {
       await load();
       setFeedback({ type: "success", message: "Bus created." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to create bus." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to create bus.",
+      });
     }
   };
 
@@ -61,7 +94,10 @@ export default function AdminDashboardPage() {
       await load();
       setFeedback({ type: "success", message: "Driver assigned." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to assign driver." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to assign driver.",
+      });
     }
   };
 
@@ -93,7 +129,10 @@ export default function AdminDashboardPage() {
       await load();
       setFeedback({ type: "success", message: "Route updated." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to update route." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to update route.",
+      });
     }
   };
 
@@ -109,12 +148,16 @@ export default function AdminDashboardPage() {
       await load();
       setFeedback({ type: "success", message: "Route deleted." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to delete route." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to delete route.",
+      });
     }
   };
 
   const addStopToDraft = () => {
-    if (!newStop.name || newStop.latitude === "" || newStop.longitude === "") return;
+    if (!newStop.name || newStop.latitude === "" || newStop.longitude === "")
+      return;
     setRouteDraft((prev) => ({
       ...prev,
       stops: [
@@ -151,11 +194,19 @@ export default function AdminDashboardPage() {
     try {
       await client.patch(`/buses/${editingBusId}`, busDraft);
       setEditingBusId(null);
-      setBusDraft({ number: "", route: "", status: "stopped", isTripActive: false });
+      setBusDraft({
+        number: "",
+        route: "",
+        status: "stopped",
+        isTripActive: false,
+      });
       await load();
       setFeedback({ type: "success", message: "Bus updated." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to update bus." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to update bus.",
+      });
     }
   };
 
@@ -166,12 +217,20 @@ export default function AdminDashboardPage() {
       await client.delete(`/buses/${busId}`);
       if (editingBusId === busId) {
         setEditingBusId(null);
-        setBusDraft({ number: "", route: "", status: "stopped", isTripActive: false });
+        setBusDraft({
+          number: "",
+          route: "",
+          status: "stopped",
+          isTripActive: false,
+        });
       }
       await load();
       setFeedback({ type: "success", message: "Bus deleted." });
     } catch (error) {
-      setFeedback({ type: "error", message: error.response?.data?.message || "Failed to delete bus." });
+      setFeedback({
+        type: "error",
+        message: error.response?.data?.message || "Failed to delete bus.",
+      });
     }
   };
 
@@ -180,7 +239,9 @@ export default function AdminDashboardPage() {
       <h2 className="text-2xl font-semibold">Admin Dashboard</h2>
       <p
         className={`inline-block rounded px-3 py-1 text-sm ${
-          isConnected ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+          isConnected
+            ? "bg-green-100 text-green-700"
+            : "bg-yellow-100 text-yellow-700"
         }`}
       >
         Live connection: {isConnected ? "Connected" : "Reconnecting..."}
@@ -188,7 +249,9 @@ export default function AdminDashboardPage() {
       {feedback.message && (
         <p
           className={`rounded p-3 text-sm ${
-            feedback.type === "error" ? "bg-red-100 text-red-700" : "bg-green-100 text-green-700"
+            feedback.type === "error"
+              ? "bg-red-100 text-red-700"
+              : "bg-green-100 text-green-700"
           }`}
         >
           {feedback.message}
@@ -197,14 +260,43 @@ export default function AdminDashboardPage() {
       <section className="grid gap-4 md:grid-cols-2">
         <form onSubmit={createRoute} className="rounded bg-white p-4 shadow">
           <h3 className="mb-2 font-semibold">Create Route</h3>
-          <input className="mb-2 w-full rounded border p-2" placeholder="Name" value={newRoute.name} onChange={(e) => setNewRoute((p) => ({ ...p, name: e.target.value }))} />
-          <input className="mb-2 w-full rounded border p-2" placeholder="Code" value={newRoute.code} onChange={(e) => setNewRoute((p) => ({ ...p, code: e.target.value }))} />
-          <button className="rounded bg-blue-600 px-3 py-2 text-white">Add Route</button>
+          <input
+            className="mb-2 w-full rounded border p-2"
+            placeholder="Name"
+            value={newRoute.name}
+            onChange={(e) =>
+              setNewRoute((p) => ({ ...p, name: e.target.value }))
+            }
+          />
+          <input
+            className="mb-2 w-full rounded border p-2"
+            placeholder="Code"
+            value={newRoute.code}
+            onChange={(e) =>
+              setNewRoute((p) => ({ ...p, code: e.target.value }))
+            }
+          />
+          <button className="rounded bg-blue-600 px-3 py-2 text-white">
+            Add Route
+          </button>
         </form>
         <form onSubmit={createBus} className="rounded bg-white p-4 shadow">
           <h3 className="mb-2 font-semibold">Create Bus</h3>
-          <input className="mb-2 w-full rounded border p-2" placeholder="Bus Number" value={newBus.number} onChange={(e) => setNewBus((p) => ({ ...p, number: e.target.value }))} />
-          <select className="mb-2 w-full rounded border p-2" value={newBus.route} onChange={(e) => setNewBus((p) => ({ ...p, route: e.target.value }))}>
+          <input
+            className="mb-2 w-full rounded border p-2"
+            placeholder="Bus Number"
+            value={newBus.number}
+            onChange={(e) =>
+              setNewBus((p) => ({ ...p, number: e.target.value }))
+            }
+          />
+          <select
+            className="mb-2 w-full rounded border p-2"
+            value={newBus.route}
+            onChange={(e) =>
+              setNewBus((p) => ({ ...p, route: e.target.value }))
+            }
+          >
             <option value="">Select route</option>
             {routes.map((route) => (
               <option key={route._id} value={route._id}>
@@ -212,7 +304,9 @@ export default function AdminDashboardPage() {
               </option>
             ))}
           </select>
-          <button className="rounded bg-blue-600 px-3 py-2 text-white">Add Bus</button>
+          <button className="rounded bg-blue-600 px-3 py-2 text-white">
+            Add Bus
+          </button>
         </form>
       </section>
       <section className="rounded bg-white p-4 shadow">
@@ -224,48 +318,125 @@ export default function AdminDashboardPage() {
               <div key={route._id} className="rounded border p-3">
                 {isEditing ? (
                   <div className="space-y-2">
-                    <input className="w-full rounded border p-2" value={routeDraft.name} onChange={(e) => setRouteDraft((p) => ({ ...p, name: e.target.value }))} placeholder="Route name" />
-                    <input className="w-full rounded border p-2" value={routeDraft.code} onChange={(e) => setRouteDraft((p) => ({ ...p, code: e.target.value }))} placeholder="Route code" />
+                    <input
+                      className="w-full rounded border p-2"
+                      value={routeDraft.name}
+                      onChange={(e) =>
+                        setRouteDraft((p) => ({ ...p, name: e.target.value }))
+                      }
+                      placeholder="Route name"
+                    />
+                    <input
+                      className="w-full rounded border p-2"
+                      value={routeDraft.code}
+                      onChange={(e) =>
+                        setRouteDraft((p) => ({ ...p, code: e.target.value }))
+                      }
+                      placeholder="Route code"
+                    />
                     <div className="rounded border p-2">
                       <p className="mb-2 text-sm font-semibold">Stops</p>
                       <div className="mb-2 space-y-1">
-                        {routeDraft.stops.length === 0 && <p className="text-sm text-slate-600">No stops added.</p>}
+                        {routeDraft.stops.length === 0 && (
+                          <p className="text-sm text-slate-600">
+                            No stops added.
+                          </p>
+                        )}
                         {routeDraft.stops.map((stop, index) => (
-                          <div key={`${stop.name}-${index}`} className="flex items-center justify-between text-sm">
-                            <span>{stop.name} ({Number(stop.latitude).toFixed(4)}, {Number(stop.longitude).toFixed(4)})</span>
-                            <button type="button" onClick={() => removeStopFromDraft(index)} className="rounded bg-red-600 px-2 py-1 text-white">
+                          <div
+                            key={`${stop.name}-${index}`}
+                            className="flex items-center justify-between text-sm"
+                          >
+                            <span>
+                              {stop.name} ({Number(stop.latitude).toFixed(4)},{" "}
+                              {Number(stop.longitude).toFixed(4)})
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => removeStopFromDraft(index)}
+                              className="rounded bg-red-600 px-2 py-1 text-white"
+                            >
                               Remove
                             </button>
                           </div>
                         ))}
                       </div>
                       <div className="grid gap-2 md:grid-cols-4">
-                        <input className="rounded border p-2" placeholder="Stop name" value={newStop.name} onChange={(e) => setNewStop((p) => ({ ...p, name: e.target.value }))} />
-                        <input className="rounded border p-2" placeholder="Latitude" value={newStop.latitude} onChange={(e) => setNewStop((p) => ({ ...p, latitude: e.target.value }))} />
-                        <input className="rounded border p-2" placeholder="Longitude" value={newStop.longitude} onChange={(e) => setNewStop((p) => ({ ...p, longitude: e.target.value }))} />
-                        <button type="button" onClick={addStopToDraft} className="rounded bg-slate-700 px-3 py-2 text-white">
+                        <input
+                          className="rounded border p-2"
+                          placeholder="Stop name"
+                          value={newStop.name}
+                          onChange={(e) =>
+                            setNewStop((p) => ({ ...p, name: e.target.value }))
+                          }
+                        />
+                        <input
+                          className="rounded border p-2"
+                          placeholder="Latitude"
+                          value={newStop.latitude}
+                          onChange={(e) =>
+                            setNewStop((p) => ({
+                              ...p,
+                              latitude: e.target.value,
+                            }))
+                          }
+                        />
+                        <input
+                          className="rounded border p-2"
+                          placeholder="Longitude"
+                          value={newStop.longitude}
+                          onChange={(e) =>
+                            setNewStop((p) => ({
+                              ...p,
+                              longitude: e.target.value,
+                            }))
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={addStopToDraft}
+                          className="rounded bg-slate-700 px-3 py-2 text-white"
+                        >
                           Add Stop
                         </button>
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <button type="button" onClick={saveRoute} className="rounded bg-blue-600 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={saveRoute}
+                        className="rounded bg-blue-600 px-3 py-2 text-white"
+                      >
                         Save
                       </button>
-                      <button type="button" onClick={() => setEditingRouteId(null)} className="rounded bg-slate-500 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => setEditingRouteId(null)}
+                        className="rounded bg-slate-500 px-3 py-2 text-white"
+                      >
                         Cancel
                       </button>
                     </div>
                   </div>
                 ) : (
                   <div>
-                    <p className="font-semibold">{route.name} ({route.code})</p>
+                    <p className="font-semibold">
+                      {route.name} ({route.code})
+                    </p>
                     <p className="text-sm">Stops: {route.stops?.length || 0}</p>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" onClick={() => beginRouteEdit(route)} className="rounded bg-blue-600 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => beginRouteEdit(route)}
+                        className="rounded bg-blue-600 px-3 py-2 text-white"
+                      >
                         Edit
                       </button>
-                      <button type="button" onClick={() => deleteRoute(route._id)} className="rounded bg-red-600 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => deleteRoute(route._id)}
+                        className="rounded bg-red-600 px-3 py-2 text-white"
+                      >
                         Delete
                       </button>
                     </div>
@@ -286,8 +457,21 @@ export default function AdminDashboardPage() {
               <div key={bus._id} className="rounded border p-3">
                 {isEditing ? (
                   <div className="space-y-2">
-                    <input className="w-full rounded border p-2" value={busDraft.number} onChange={(e) => setBusDraft((p) => ({ ...p, number: e.target.value }))} placeholder="Bus number" />
-                    <select className="w-full rounded border p-2" value={busDraft.route} onChange={(e) => setBusDraft((p) => ({ ...p, route: e.target.value }))}>
+                    <input
+                      className="w-full rounded border p-2"
+                      value={busDraft.number}
+                      onChange={(e) =>
+                        setBusDraft((p) => ({ ...p, number: e.target.value }))
+                      }
+                      placeholder="Bus number"
+                    />
+                    <select
+                      className="w-full rounded border p-2"
+                      value={busDraft.route}
+                      onChange={(e) =>
+                        setBusDraft((p) => ({ ...p, route: e.target.value }))
+                      }
+                    >
                       <option value="">Select route</option>
                       {routes.map((route) => (
                         <option key={route._id} value={route._id}>
@@ -295,20 +479,43 @@ export default function AdminDashboardPage() {
                         </option>
                       ))}
                     </select>
-                    <select className="w-full rounded border p-2" value={busDraft.status} onChange={(e) => setBusDraft((p) => ({ ...p, status: e.target.value }))}>
+                    <select
+                      className="w-full rounded border p-2"
+                      value={busDraft.status}
+                      onChange={(e) =>
+                        setBusDraft((p) => ({ ...p, status: e.target.value }))
+                      }
+                    >
                       <option value="running">running</option>
                       <option value="delayed">delayed</option>
                       <option value="stopped">stopped</option>
                     </select>
                     <label className="flex items-center gap-2 text-sm">
-                      <input type="checkbox" checked={busDraft.isTripActive} onChange={(e) => setBusDraft((p) => ({ ...p, isTripActive: e.target.checked }))} />
+                      <input
+                        type="checkbox"
+                        checked={busDraft.isTripActive}
+                        onChange={(e) =>
+                          setBusDraft((p) => ({
+                            ...p,
+                            isTripActive: e.target.checked,
+                          }))
+                        }
+                      />
                       Trip active
                     </label>
                     <div className="flex gap-2">
-                      <button type="button" onClick={saveBus} className="rounded bg-blue-600 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={saveBus}
+                        className="rounded bg-blue-600 px-3 py-2 text-white"
+                      >
                         Save
                       </button>
-                      <button type="button" onClick={() => setEditingBusId(null)} className="rounded bg-slate-500 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => setEditingBusId(null)}
+                        className="rounded bg-slate-500 px-3 py-2 text-white"
+                      >
                         Cancel
                       </button>
                     </div>
@@ -316,12 +523,25 @@ export default function AdminDashboardPage() {
                 ) : (
                   <>
                     <p className="font-semibold">{bus.number}</p>
-                    <p className="text-sm">Status: {live?.status || bus.status}</p>
-                    <p className="text-sm">Route: {bus.route?.name || "Unassigned"}</p>
                     <p className="text-sm">
-                      Live: {live ? `${live.latitude.toFixed(4)}, ${live.longitude.toFixed(4)}` : "No live data"}
+                      Status: {live?.status || bus.status}
                     </p>
-                    <select className="mt-2 rounded border p-2" defaultValue="" onChange={(e) => e.target.value && assign(bus._id, e.target.value)}>
+                    <p className="text-sm">
+                      Route: {bus.route?.name || "Unassigned"}
+                    </p>
+                    <p className="text-sm">
+                      Live:{" "}
+                      {live
+                        ? `${live.latitude.toFixed(4)}, ${live.longitude.toFixed(4)}`
+                        : "No live data"}
+                    </p>
+                    <select
+                      className="mt-2 rounded border p-2"
+                      defaultValue=""
+                      onChange={(e) =>
+                        e.target.value && assign(bus._id, e.target.value)
+                      }
+                    >
                       <option value="">Assign driver</option>
                       {drivers.map((driver) => (
                         <option key={driver._id} value={driver._id}>
@@ -330,10 +550,18 @@ export default function AdminDashboardPage() {
                       ))}
                     </select>
                     <div className="mt-2 flex gap-2">
-                      <button type="button" onClick={() => beginBusEdit(bus)} className="rounded bg-blue-600 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => beginBusEdit(bus)}
+                        className="rounded bg-blue-600 px-3 py-2 text-white"
+                      >
                         Edit
                       </button>
-                      <button type="button" onClick={() => deleteBus(bus._id)} className="rounded bg-red-600 px-3 py-2 text-white">
+                      <button
+                        type="button"
+                        onClick={() => deleteBus(bus._id)}
+                        className="rounded bg-red-600 px-3 py-2 text-white"
+                      >
                         Delete
                       </button>
                     </div>
