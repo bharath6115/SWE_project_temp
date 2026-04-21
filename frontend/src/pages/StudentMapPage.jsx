@@ -38,10 +38,13 @@ export default function StudentMapPage() {
       buses.map((bus) => {
         const live = busLocations[bus._id];
         if (!live) return bus;
+        const updatedAt = live.updatedAt ? new Date(live.updatedAt).getTime() : 0;
+        const isFreshUpdate = Number.isFinite(updatedAt) && Date.now() - updatedAt <= 20000;
         return {
           ...bus,
           status: live.status,
           etaMinutes: live.etaMinutes,
+          isMoving: live.status === "running" && isFreshUpdate,
           currentLocation: {
             latitude: live.latitude,
             longitude: live.longitude,

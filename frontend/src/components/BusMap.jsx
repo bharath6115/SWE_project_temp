@@ -14,6 +14,14 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
+const movingBusIcon = L.divIcon({
+  className: "bus-marker-moving",
+  html: '<span class="bus-marker-moving__dot"></span>',
+  iconSize: [20, 20],
+  iconAnchor: [10, 10],
+});
+const defaultBusIcon = new L.Icon.Default();
+
 function RecenterOnLocation({ center }) {
   const map = useMap();
   useEffect(() => {
@@ -69,12 +77,21 @@ export default function BusMap({ buses }) {
         <Marker
           key={bus._id}
           position={bus.position}
+          icon={bus.isMoving ? movingBusIcon : defaultBusIcon}
         >
           <Popup>
             <div className="text-sm">
               <p className="font-semibold">{bus.number}</p>
               <p>Status: {bus.status}</p>
               <p>ETA: {bus.etaMinutes || "-"} min</p>
+              {bus.isMoving ? (
+                <button
+                  type="button"
+                  className="mt-2 rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700"
+                >
+                  Bus moving
+                </button>
+              ) : null}
             </div>
           </Popup>
         </Marker>

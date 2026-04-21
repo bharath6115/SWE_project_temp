@@ -91,7 +91,11 @@ export default function DriverPanelPage() {
           setGeoError("Unable to fetch location.");
           inFlight = false;
         },
-        { enableHighAccuracy: true, timeout: 8000 },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 5000,
+        },
       );
     }, LOCATION_SEND_INTERVAL_MS);
 
