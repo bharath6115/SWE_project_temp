@@ -1,9 +1,19 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
+
+const parseCookies = (cookieString) => {
+  if (!cookieString) return {};
+  return cookieString.split(";").reduce((acc, cookie) => {
+    const [key, value] = cookie.split("=").map((c) => c.trim());
+    acc[key] = value;
+    return acc;
+  }, {});
+};
 
 const socketAuth = (socket, next) => {
   try {
-    const token = socket.handshake.auth?.token;
+    const cookies = parseCookies(socket.handshake.headers.cookie);
+    const token = cookies.campus_bus_token || socket.handshake.auth?.token;
+
     if (!token) {
       return next(new Error("Unauthorized: No token provided"));
     }

@@ -30,22 +30,19 @@ export default function DriverPanelPage() {
         setTripActive(Boolean(assigned?.isTripActive));
         setStatus(assigned?.status || "running");
       } catch (loadError) {
-        setError(
-          loadError.response?.data?.message || "Failed to load assigned bus.",
-        );
+        setError(loadError.response?.data?.message || "Failed to load assigned bus.");
       } finally {
         setLoading(false);
       }
     };
-    loadAssignedBus();
+    if (user) loadAssignedBus();
   }, [user]);
 
   useEffect(() => {
-    if (!tripActive || !bus) return undefined;
-    if (!socket?.connected) return undefined;
+    if (!tripActive || !bus || !socket?.connected) return undefined;
     if (!navigator.geolocation) {
       setGeoStatus("unsupported");
-      setGeoError("Geolocation is not supported in this browser.");
+      setGeoError("Geolocation is not supported.");
       return undefined;
     }
 
@@ -63,174 +60,140 @@ export default function DriverPanelPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
             status,
-            speedKmph:
-              Number.isFinite(position.coords.speed) && position.coords.speed >= 0
-                ? position.coords.speed * 3.6
-                : null,
+            speedKmph: Number.isFinite(position.coords.speed) && position.coords.speed >= 0
+              ? position.coords.speed * 3.6
+              : null,
           });
           inFlight = false;
         },
-        (positionError) => {
+        (pError) => {
           setGeoStatus("error");
-          if (positionError.code === 1) {
-            setGeoError(
-              "Location permission denied. Please enable location access.",
-            );
-            return;
-          }
-          if (positionError.code === 2) {
-            setGeoError(
-              "Location unavailable. Check GPS/network and try again.",
-            );
-            return;
-          }
-          if (positionError.code === 3) {
-            setGeoError("Location request timed out. Retrying automatically.");
-            return;
-          }
-          setGeoError("Unable to fetch location.");
+          setGeoError(pError.message);
           inFlight = false;
         },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 5000,
-        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
       );
     }, LOCATION_SEND_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [tripActive, socket, user, bus, status]);
+  }, [tripActive, socket, bus, status]);
 
-  useEffect(() => {
-    if (!socket) return;
-
-    const handleSocketError = (error) => {
-      console.error("[Driver] Socket error:", error);
-      const message = (error.message || "").toLowerCase();
-      if (message.includes("too many updates")) {
-        setGeoError("Location updates too frequent. Waiting...");
-      } else if (message.includes("not assigned")) {
-        setGeoError("Error: Not assigned to this bus");
-      } else {
-        setGeoError(error.message || "Failed to send location");
-      }
-    };
-
-    socket.on("error", handleSocketError);
-    return () => socket.off("error", handleSocketError);
-  }, [socket]);
-
-  const updateTrip = async (isTripActive) => {
+  const updateTrip = async (active) => {
     if (!bus) return;
-    setError("");
-    setFeedback("");
     try {
-      await client.patch(`/buses/${bus._id}`, { isTripActive, status });
-      setTripActive(isTripActive);
-      setFeedback(isTripActive ? "Trip started." : "Trip stopped.");
-    } catch (updateError) {
-      setError(
-        updateError.response?.data?.message || "Failed to update trip state.",
-      );
+      await client.patch(`/buses/${bus._id}`, { isTripActive: active, status });
+      setTripActive(active);
+      setFeedback(active ? "Trip started successfully" : "Trip ended");
+      setTimeout(() => setFeedback(""), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update trip");
     }
   };
 
-  const updateStatus = async (nextStatus) => {
+  const setBusStatus = async (s) => {
     if (!bus) return;
-    setError("");
-    setFeedback("");
     try {
-      await client.patch(`/buses/${bus._id}`, { status: nextStatus });
-      setStatus(nextStatus);
-      setFeedback(`Status updated to ${nextStatus}.`);
-    } catch (updateError) {
-      setError(
-        updateError.response?.data?.message || "Failed to update status.",
-      );
+      await client.patch(`/buses/${bus._id}`, { status: s });
+      setStatus(s);
+      setFeedback(`Status updated to ${s}`);
+      setTimeout(() => setFeedback(""), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || "Failed to update status");
     }
   };
 
-  if (loading) {
-    return <main className="p-4">Loading driver panel...</main>;
-  }
-
-  if (error && !bus) {
-    return <main className="p-4 text-red-700">{error}</main>;
-  }
+  if (loading) return <div className="flex h-96 items-center justify-center text-slate-500 font-medium">Initializing console...</div>;
 
   if (!bus) {
-    return <main className="p-4">No bus assigned to your driver account.</main>;
+    return (
+      <main className="mx-auto max-w-lg p-6">
+        <div className="rounded-2xl bg-white p-8 text-center shadow-lg border border-slate-100">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-50 text-slate-400">
+             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-1.1 0-2 .9-2 2v7c0 1.1.9 2 2 2h10" /><circle cx="7" cy="17" r="2" /><circle cx="15" cy="17" r="2" /></svg>
+          </div>
+          <h2 className="text-xl font-bold text-slate-900">No Bus Assigned</h2>
+          <p className="mt-2 text-slate-500">Please contact the administrator to assign a vehicle to your account.</p>
+        </div>
+      </main>
+    );
   }
 
   return (
-    <main className="mx-auto max-w-3xl p-4">
-      <div className="rounded bg-white p-4 shadow">
-        <h2 className="text-xl font-semibold">Driver Panel</h2>
-        {error && (
-          <p className="mt-2 rounded bg-red-100 p-2 text-sm text-red-700">
-            {error}
-          </p>
-        )}
-        {feedback && (
-          <p className="mt-2 rounded bg-green-100 p-2 text-sm text-green-700">
-            {feedback}
-          </p>
-        )}
-        <p className="mt-2 text-sm">Assigned Bus: {bus.number}</p>
-        <p className="text-sm">Current Status: {status}</p>
-        <p className="text-sm">Trip: {tripActive ? "Active" : "Inactive"}</p>
-        <p className="text-sm">
-          Location sync:{" "}
-          {geoStatus === "ok"
-            ? "Running"
-            : geoStatus === "unsupported"
-              ? "Unsupported"
-              : geoStatus === "error"
-                ? "Issue detected"
-                : "Waiting"}
-        </p>
-        {lastLocationAt && (
-          <p className="text-xs text-slate-600">
-            Last location sent: {new Date(lastLocationAt).toLocaleTimeString()}
-          </p>
-        )}
-        {geoError && (
-          <p className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">
-            {geoError}
-          </p>
-        )}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <button
-            onClick={() => updateTrip(true)}
-            className="rounded bg-green-600 px-3 py-2 text-white"
-          >
-            Start Trip
-          </button>
-          <button
-            onClick={() => updateTrip(false)}
-            className="rounded bg-gray-700 px-3 py-2 text-white"
-          >
-            Stop Trip
-          </button>
-          <button
-            onClick={() => updateStatus("running")}
-            className="rounded bg-blue-600 px-3 py-2 text-white"
-          >
-            Running
-          </button>
-          <button
-            onClick={() => updateStatus("delayed")}
-            className="rounded bg-yellow-600 px-3 py-2 text-white"
-          >
-            Delayed
-          </button>
-          <button
-            onClick={() => updateStatus("stopped")}
-            className="rounded bg-red-600 px-3 py-2 text-white"
-          >
-            Stopped
-          </button>
+    <main className="mx-auto max-w-2xl p-6">
+      <div className="overflow-hidden rounded-3xl bg-white shadow-xl border border-slate-100">
+        <div className="bg-slate-900 p-8 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold">Driver Console</h2>
+              <p className="text-slate-400 font-medium">Vehicle ID: {bus.number}</p>
+            </div>
+            <div className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-sm font-bold ${tripActive ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-800 text-slate-400'}`}>
+              <span className={`h-2 w-2 rounded-full ${tripActive ? 'bg-emerald-400 animate-pulse' : 'bg-slate-500'}`}></span>
+              {tripActive ? 'Active Trip' : 'Off Duty'}
+            </div>
+          </div>
+        </div>
+
+        <div className="p-8 space-y-8">
+          {error && <div className="rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600 border border-red-100">{error}</div>}
+          {feedback && <div className="rounded-xl bg-emerald-50 p-4 text-sm font-semibold text-emerald-600 border border-emerald-100">{feedback}</div>}
+
+          <section>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Trip Controls</h3>
+            <div className="grid grid-cols-2 gap-4">
+              <button 
+                onClick={() => updateTrip(true)}
+                disabled={tripActive}
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-emerald-600 p-6 text-white transition-all hover:bg-emerald-700 disabled:opacity-50"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 3l14 9-14 9V3z"/></svg>
+                <span className="font-bold">Start Trip</span>
+              </button>
+              <button 
+                onClick={() => updateTrip(false)}
+                disabled={!tripActive}
+                className="flex flex-col items-center justify-center gap-2 rounded-2xl bg-slate-900 p-6 text-white transition-all hover:bg-slate-800 disabled:opacity-50"
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="6" y="6" width="12" height="12"/></svg>
+                <span className="font-bold">End Trip</span>
+              </button>
+            </div>
+          </section>
+
+          <section>
+            <h3 className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-4">Status Updates</h3>
+            <div className="flex flex-wrap gap-3">
+              {['running', 'delayed', 'stopped'].map((s) => (
+                <button
+                  key={s}
+                  onClick={() => setBusStatus(s)}
+                  className={`flex-1 rounded-xl border-2 px-4 py-3 text-sm font-bold capitalize transition-all ${
+                    status === s 
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-600' 
+                    : 'border-slate-100 bg-slate-50 text-slate-600 hover:border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-2xl bg-slate-50 p-6">
+             <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                   <div className={`h-10 w-10 flex items-center justify-center rounded-xl ${geoStatus === 'ok' ? 'bg-emerald-100 text-emerald-600' : 'bg-slate-200 text-slate-500'}`}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                   </div>
+                   <div>
+                      <p className="text-sm font-bold text-slate-900">Live GPS Link</p>
+                      <p className="text-xs text-slate-500">{geoStatus === 'ok' ? 'Transmitting coordinates' : 'Searching for signal...'}</p>
+                   </div>
+                </div>
+                {lastLocationAt && <span className="text-[10px] font-bold text-slate-400 uppercase">Last sync: {new Date(lastLocationAt).toLocaleTimeString()}</span>}
+             </div>
+             {geoError && <p className="mt-3 text-xs font-semibold text-amber-600">Note: {geoError}</p>}
+          </section>
         </div>
       </div>
     </main>

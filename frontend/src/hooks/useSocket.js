@@ -19,25 +19,17 @@ export default function useSocket() {
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
       reconnectionAttempts: 5,
+      withCredentials: true,
     });
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("campus_bus_token");
-
-    if (!token) {
-      setConnectionError("No authentication token");
-      showError("No authentication token found. Please login.");
-      return;
-    }
-
-    socket.auth = { token };
     socket.connect();
 
     return () => {
       socket.disconnect();
     };
-  }, [socket, showError]);
+  }, [socket]);
 
   useEffect(() => {
     if (!socket) return;

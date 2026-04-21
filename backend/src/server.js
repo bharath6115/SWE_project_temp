@@ -13,8 +13,9 @@ const start = async () => {
   const server = http.createServer(app);
   const io = new Server(server, {
     cors: {
-      origin: process.env.CLIENT_ORIGIN?.split(",") || "*",
+      origin: process.env.CLIENT_ORIGIN?.split(",") || "http://localhost:5173",
       methods: ["GET", "POST"],
+      credentials: true,
     },
   });
 

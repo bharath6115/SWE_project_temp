@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import L from "leaflet";
 import { MapContainer, Marker, Popup, Polyline, TileLayer, useMap } from "react-leaflet";
 import { useLocationContext } from "../context/LocationContext";
+import { getRouteColor } from "../utils/colors";
+import { useInterpolatedLocation } from "../hooks/useInterpolatedLocation";
 
 import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
@@ -17,105 +19,105 @@ L.Icon.Default.mergeOptions({
 const movingBusIcon = L.divIcon({
   className: "bus-marker-moving",
   html: '<span class="bus-marker-moving__dot"></span>',
-  iconSize: [20, 20],
-  iconAnchor: [10, 10],
+  iconSize: [24, 24],
+  iconAnchor: [12, 12],
 });
-const defaultBusIcon = new L.Icon.Default();
+
+function InterpolatedMarker({ bus, isSelected }) {
+  const pos = useInterpolatedLocation(
+    Number(bus.currentLocation?.latitude),
+    Number(bus.currentLocation?.longitude)
+  );
+
+  return (
+    <Marker position={pos} icon={movingBusIcon}>
+      <Popup className="bus-popup">
+        <div className="p-1">
+          <h4 className="font-bold text-slate-900">Bus {bus.number}</h4>
+          <p className="text-xs text-slate-500">{bus.route?.name}</p>
+          <div className="mt-2 flex items-center gap-2">
+            <span className={`h-2 w-2 rounded-full ${bus.status === 'running' ? 'bg-emerald-500' : 'bg-amber-500'}`}></span>
+            <span className="text-xs font-semibold capitalize">{bus.status}</span>
+          </div>
+          <p className="mt-1 text-xs font-medium text-indigo-600">ETA: {bus.etaMinutes || "--"} min</p>
+        </div>
+      </Popup>
+    </Marker>
+  );
+}
 
 function RecenterOnLocation({ center }) {
   const map = useMap();
   useEffect(() => {
-    const isValidCenter =
-      Array.isArray(center) &&
-      center.length === 2 &&
-      Number.isFinite(Number(center[0])) &&
-      Number.isFinite(Number(center[1]));
-    if (!isValidCenter) return;
+    if (!center) return;
     map.setView(center, map.getZoom(), { animate: true });
   }, [center, map]);
   return null;
 }
 
-export default function BusMap({ buses }) {
+export default function BusMap({ buses, selectedBusId, onBusSelect }) {
   const { location } = useLocationContext();
   const fallbackCenter = [12.9716, 77.5946];
-  const [center, setCenter] = useState(fallbackCenter);
+  const [mapCenter, setMapCenter] = useState(fallbackCenter);
 
   useEffect(() => {
     if (!location) return;
-    setCenter([location.latitude, location.longitude]);
-  }, [location]);
+    // Only recenter if no bus is selected (follow user)
+    if (!selectedBusId) {
+      setMapCenter([location.latitude, location.longitude]);
+    }
+  }, [location, selectedBusId]);
 
-  const markerPoints = useMemo(
-    () =>
-      buses
-        .filter((bus) => {
-          const lat = Number(bus.currentLocation?.latitude);
-          const lng = Number(bus.currentLocation?.longitude);
-          return Number.isFinite(lat) && Number.isFinite(lng);
-        })
-        .map((bus) => ({
-          ...bus,
-          position: [Number(bus.currentLocation.latitude), Number(bus.currentLocation.longitude)],
-        })),
-    [buses]
-  );
+  useEffect(() => {
+    if (selectedBusId) {
+      const selectedBus = buses.find(b => b._id === selectedBusId);
+      if (selectedBus?.currentLocation) {
+        setMapCenter([selectedBus.currentLocation.latitude, selectedBus.currentLocation.longitude]);
+      }
+    }
+  }, [selectedBusId, buses]);
 
   return (
     <MapContainer
-      center={center}
-      zoom={13}
+      center={mapCenter}
+      zoom={15}
+      zoomControl={false}
       scrollWheelZoom
-      className="h-[75vh] w-full rounded-xl shadow"
+      className="h-full w-full"
     >
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <RecenterOnLocation center={center} />
-      {markerPoints.map((bus) => (
-        <Marker
-          key={bus._id}
-          position={bus.position}
-          icon={bus.isMoving ? movingBusIcon : defaultBusIcon}
-        >
-          <Popup>
-            <div className="text-sm">
-              <p className="font-semibold">{bus.number}</p>
-              <p>Status: {bus.status}</p>
-              <p>ETA: {bus.etaMinutes || "-"} min</p>
-              {bus.isMoving ? (
-                <button
-                  type="button"
-                  className="mt-2 rounded-full bg-green-100 px-2 py-1 text-xs font-semibold text-green-700"
-                >
-                  Bus moving
-                </button>
-              ) : null}
-            </div>
-          </Popup>
-        </Marker>
-      ))}
+      <RecenterOnLocation center={mapCenter} />
+      
+      {/* Route Polylines */}
       {buses.map((bus) => {
         if (!bus.route?.stops?.length) return null;
-        const path = bus.route.stops
-          .filter((stop) => {
-            const lat = Number(stop?.latitude);
-            const lng = Number(stop?.longitude);
-            return Number.isFinite(lat) && Number.isFinite(lng);
-          })
-          .map((stop) => [Number(stop.latitude), Number(stop.longitude)]);
-        if (path.length < 2) return null;
+        const isSelected = bus._id === selectedBusId;
+        const color = getRouteColor(bus.route._id);
+        const path = bus.route.stops.map(s => [s.latitude, s.longitude]);
+        
         return (
           <Polyline
             key={`route-${bus._id}`}
             positions={path}
-            color="#2563eb"
-            opacity={0.65}
-            weight={3}
+            color={color}
+            opacity={isSelected ? 0.8 : 0.3}
+            weight={isSelected ? 5 : 3}
+            dashArray={isSelected ? null : "5, 10"}
           />
         );
       })}
+
+      {/* Bus Markers */}
+      {buses.map((bus) => (
+        <InterpolatedMarker 
+          key={bus._id} 
+          bus={bus} 
+          isSelected={bus._id === selectedBusId} 
+        />
+      ))}
     </MapContainer>
   );
 }

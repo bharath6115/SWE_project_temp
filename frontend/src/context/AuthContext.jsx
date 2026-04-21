@@ -9,16 +9,14 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     const bootstrap = async () => {
-      const token = localStorage.getItem("campus_bus_token");
-      if (!token) {
-        setLoading(false);
-        return;
-      }
       try {
         const { data } = await client.get("/auth/me");
-        setUser(data.user);
-      } catch {
-        localStorage.removeItem("campus_bus_token");
+        if (data.user) {
+          setUser(data.user);
+        }
+      } catch (err) {
+        // Not logged in or session expired
+        setUser(null);
       } finally {
         setLoading(false);
       }
@@ -27,15 +25,21 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = async (payload) => {
-    const { data } = await client.post("/auth/login", payload);
-    localStorage.setItem("campus_bus_token", data.token);
-    setUser(data.user);
-    return data.user;
+    try {
+      const { data } = await client.post("/auth/login", payload);
+      setUser(data.user);
+      return data.user;
+    } catch (err) {
+      throw err;
+    }
   };
 
-  const logout = () => {
-    localStorage.removeItem("campus_bus_token");
-    setUser(null);
+  const logout = async () => {
+    try {
+      await client.post("/auth/logout");
+    } finally {
+      setUser(null);
+    }
   };
 
   const value = useMemo(() => ({ user, loading, login, logout }), [user, loading]);

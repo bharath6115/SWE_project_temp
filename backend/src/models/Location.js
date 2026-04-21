@@ -19,5 +19,6 @@ const locationSchema = new mongoose.Schema(
 );
 
 locationSchema.index({ point: "2dsphere" });
+locationSchema.index({ createdAt: 1 }, { expireAfterSeconds: 86400 }); // 24 hours
 
 module.exports = mongoose.model("Location", locationSchema);

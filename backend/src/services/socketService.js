@@ -165,6 +165,7 @@ const attachSocketHandlers = (io) => {
         });
 
         // Update bus current location & status
+        const previousStatus = bus.status;
         bus.status = status;
         bus.currentLocation = {
           latitude: Number(latitude),
@@ -189,8 +190,8 @@ const attachSocketHandlers = (io) => {
         const busRoom = `bus_${busId}`;
         io.to(busRoom).emit("busLocationUpdated", locationPayload);
 
-        // Emit delay notification to all connected clients if delayed
-        if (status === "delayed") {
+        // Emit delay notification to all connected clients only if status changed TO delayed
+        if (status === "delayed" && previousStatus !== "delayed") {
           io.emit("delayNotification", {
             busId: bus._id,
             busNumber: bus.number,
