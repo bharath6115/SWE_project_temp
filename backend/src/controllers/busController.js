@@ -6,7 +6,9 @@ const { estimateEtaMinutes } = require("../utils/eta");
 
 const getBuses = async (req, res, next) => {
   try {
-    const buses = await Bus.find().populate("route driver", "name code email");
+    const buses = await Bus.find()
+      .populate("route", "name code stops")
+      .populate("driver", "name email");
     res.json(buses);
   } catch (error) {
     next(error);
@@ -26,8 +28,26 @@ const createBus = async (req, res, next) => {
 
 const updateBus = async (req, res, next) => {
   try {
-    const bus = await Bus.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const isDriver = req.user?.role === "driver";
+    const bus = await Bus.findById(req.params.id);
     if (!bus) return res.status(404).json({ message: "Bus not found" });
+
+    if (isDriver) {
+      const isAssignedDriver = bus.driver && String(bus.driver) === String(req.user._id);
+      if (!isAssignedDriver) {
+        return res.status(403).json({ message: "Forbidden" });
+      }
+
+      const allowedDriverFields = ["status", "isTripActive"];
+      const requestedFields = Object.keys(req.body || {});
+      const hasOnlyAllowedFields = requestedFields.every((field) => allowedDriverFields.includes(field));
+      if (!hasOnlyAllowedFields) {
+        return res.status(400).json({ message: "Drivers can only update status and trip state" });
+      }
+    }
+
+    Object.assign(bus, req.body);
+    await bus.save();
     res.json(bus);
   } catch (error) {
     next(error);
@@ -93,6 +113,30 @@ const getBusEta = async (req, res, next) => {
   }
 };
 
+const getRecentDelays = async (req, res, next) => {
+  try {
+    const delays = await Location.find({ status: "delayed" })
+      .sort({ createdAt: -1 })
+      .limit(20)
+      .populate("bus", "number");
+
+    const messages = delays.map((entry) => {
+      const busId = entry.bus?._id || entry.bus;
+      const busNumber = entry.bus?.number || "Unknown";
+      return {
+        busId,
+        busNumber,
+        message: `Bus ${busNumber} is delayed.`,
+        updatedAt: entry.createdAt,
+      };
+    });
+
+    res.json(messages);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getBuses,
   createBus,
@@ -101,4 +145,5 @@ module.exports = {
   assignDriver,
   getBusLocations,
   getBusEta,
+  getRecentDelays,
 };

@@ -9,29 +9,72 @@ export default function DriverPanelPage() {
   const [bus, setBus] = useState(null);
   const [status, setStatus] = useState("running");
   const [tripActive, setTripActive] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [feedback, setFeedback] = useState("");
+  const [geoStatus, setGeoStatus] = useState("idle");
+  const [geoError, setGeoError] = useState("");
+  const [lastLocationAt, setLastLocationAt] = useState(null);
 
   useEffect(() => {
-    client.get("/buses").then(({ data }) => {
-      const assigned = data.find((entry) => entry.driver?._id === user?.id);
-      setBus(assigned || null);
-      setTripActive(Boolean(assigned?.isTripActive));
-      setStatus(assigned?.status || "running");
-    });
+    const loadAssignedBus = async () => {
+      setLoading(true);
+      setError("");
+      try {
+        const { data } = await client.get("/buses");
+        const assigned = data.find((entry) => entry.driver?._id === user?.id);
+        setBus(assigned || null);
+        setTripActive(Boolean(assigned?.isTripActive));
+        setStatus(assigned?.status || "running");
+      } catch (loadError) {
+        setError(loadError.response?.data?.message || "Failed to load assigned bus.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadAssignedBus();
   }, [user]);
 
   useEffect(() => {
-    if (!tripActive || !bus || !navigator.geolocation) return undefined;
+    if (!tripActive || !bus) return undefined;
+    if (!navigator.geolocation) {
+      setGeoStatus("unsupported");
+      setGeoError("Geolocation is not supported in this browser.");
+      return undefined;
+    }
 
     const interval = setInterval(() => {
-      navigator.geolocation.getCurrentPosition((position) => {
-        socket.emit("locationUpdate", {
-          driverId: user.id,
-          busId: bus._id,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          status,
-        });
-      });
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGeoStatus("ok");
+          setGeoError("");
+          setLastLocationAt(new Date().toISOString());
+          socket.emit("locationUpdate", {
+            driverId: user.id,
+            busId: bus._id,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            status,
+          });
+        },
+        (positionError) => {
+          setGeoStatus("error");
+          if (positionError.code === 1) {
+            setGeoError("Location permission denied. Please enable location access.");
+            return;
+          }
+          if (positionError.code === 2) {
+            setGeoError("Location unavailable. Check GPS/network and try again.");
+            return;
+          }
+          if (positionError.code === 3) {
+            setGeoError("Location request timed out. Retrying automatically.");
+            return;
+          }
+          setGeoError("Unable to fetch location.");
+        },
+        { enableHighAccuracy: true, timeout: 8000 }
+      );
     }, 3000);
 
     return () => clearInterval(interval);
@@ -39,15 +82,37 @@ export default function DriverPanelPage() {
 
   const updateTrip = async (isTripActive) => {
     if (!bus) return;
-    await client.patch(`/buses/${bus._id}`, { isTripActive, status });
-    setTripActive(isTripActive);
+    setError("");
+    setFeedback("");
+    try {
+      await client.patch(`/buses/${bus._id}`, { isTripActive, status });
+      setTripActive(isTripActive);
+      setFeedback(isTripActive ? "Trip started." : "Trip stopped.");
+    } catch (updateError) {
+      setError(updateError.response?.data?.message || "Failed to update trip state.");
+    }
   };
 
   const updateStatus = async (nextStatus) => {
     if (!bus) return;
-    await client.patch(`/buses/${bus._id}`, { status: nextStatus });
-    setStatus(nextStatus);
+    setError("");
+    setFeedback("");
+    try {
+      await client.patch(`/buses/${bus._id}`, { status: nextStatus });
+      setStatus(nextStatus);
+      setFeedback(`Status updated to ${nextStatus}.`);
+    } catch (updateError) {
+      setError(updateError.response?.data?.message || "Failed to update status.");
+    }
   };
+
+  if (loading) {
+    return <main className="p-4">Loading driver panel...</main>;
+  }
+
+  if (error && !bus) {
+    return <main className="p-4 text-red-700">{error}</main>;
+  }
 
   if (!bus) {
     return <main className="p-4">No bus assigned to your driver account.</main>;
@@ -57,8 +122,16 @@ export default function DriverPanelPage() {
     <main className="mx-auto max-w-3xl p-4">
       <div className="rounded bg-white p-4 shadow">
         <h2 className="text-xl font-semibold">Driver Panel</h2>
+        {error && <p className="mt-2 rounded bg-red-100 p-2 text-sm text-red-700">{error}</p>}
+        {feedback && <p className="mt-2 rounded bg-green-100 p-2 text-sm text-green-700">{feedback}</p>}
         <p className="mt-2 text-sm">Assigned Bus: {bus.number}</p>
         <p className="text-sm">Current Status: {status}</p>
+        <p className="text-sm">Trip: {tripActive ? "Active" : "Inactive"}</p>
+        <p className="text-sm">
+          Location sync: {geoStatus === "ok" ? "Running" : geoStatus === "unsupported" ? "Unsupported" : geoStatus === "error" ? "Issue detected" : "Waiting"}
+        </p>
+        {lastLocationAt && <p className="text-xs text-slate-600">Last location sent: {new Date(lastLocationAt).toLocaleTimeString()}</p>}
+        {geoError && <p className="mt-2 rounded bg-yellow-100 p-2 text-sm text-yellow-800">{geoError}</p>}
         <div className="mt-4 flex flex-wrap gap-2">
           <button onClick={() => updateTrip(true)} className="rounded bg-green-600 px-3 py-2 text-white">
             Start Trip

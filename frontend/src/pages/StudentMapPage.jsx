@@ -5,7 +5,7 @@ import useSocket from "../hooks/useSocket";
 
 export default function StudentMapPage() {
   const [buses, setBuses] = useState([]);
-  const { busLocations, delayMessages } = useSocket();
+  const { busLocations, delayMessages, isConnected } = useSocket();
 
   useEffect(() => {
     client.get("/buses").then(({ data }) => setBuses(data)).catch(() => setBuses([]));
@@ -29,6 +29,13 @@ export default function StudentMapPage() {
   return (
     <main className="mx-auto max-w-6xl space-y-4 p-4">
       <h2 className="text-2xl font-semibold">Student Live Map</h2>
+      <p
+        className={`inline-block rounded px-3 py-1 text-sm ${
+          isConnected ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+        }`}
+      >
+        Live connection: {isConnected ? "Connected" : "Reconnecting..."}
+      </p>
       <BusMap buses={mergedBuses} />
       <section className="rounded bg-white p-4 shadow">
         <h3 className="mb-2 font-semibold">Delay Notifications</h3>

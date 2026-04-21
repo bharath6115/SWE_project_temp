@@ -17,6 +17,12 @@ L.Icon.Default.mergeOptions({
 function RecenterOnLocation({ center }) {
   const map = useMap();
   useEffect(() => {
+    const isValidCenter =
+      Array.isArray(center) &&
+      center.length === 2 &&
+      Number.isFinite(Number(center[0])) &&
+      Number.isFinite(Number(center[1]));
+    if (!isValidCenter) return;
     map.setView(center, map.getZoom(), { animate: true });
   }, [center, map]);
   return null;
@@ -35,7 +41,11 @@ export default function BusMap({ buses }) {
   const markerPoints = useMemo(
     () =>
       buses
-        .filter((bus) => bus.currentLocation?.latitude && bus.currentLocation?.longitude)
+        .filter((bus) => {
+          const lat = Number(bus.currentLocation?.latitude);
+          const lng = Number(bus.currentLocation?.longitude);
+          return Number.isFinite(lat) && Number.isFinite(lng);
+        })
         .map((bus) => ({
           ...bus,
           position: [Number(bus.currentLocation.latitude), Number(bus.currentLocation.longitude)],
@@ -71,11 +81,18 @@ export default function BusMap({ buses }) {
       ))}
       {buses.map((bus) => {
         if (!bus.route?.stops?.length) return null;
-        const path = bus.route.stops.map((stop) => [Number(stop.latitude), Number(stop.longitude)]);
+        const path = bus.route.stops
+          .filter((stop) => {
+            const lat = Number(stop?.latitude);
+            const lng = Number(stop?.longitude);
+            return Number.isFinite(lat) && Number.isFinite(lng);
+          })
+          .map((stop) => [Number(stop.latitude), Number(stop.longitude)]);
+        if (path.length < 2) return null;
         return (
           <Polyline
             key={`route-${bus._id}`}
-            path={path}
+            positions={path}
             color="#2563eb"
             opacity={0.65}
             weight={3}
